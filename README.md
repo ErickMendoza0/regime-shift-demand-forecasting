@@ -1,10 +1,12 @@
 # Regime-shift demand forecasting
 
 A monthly electricity-demand forecasting benchmark for Ecuador, evaluated with
-a rolling-origin protocol over 2021-2024. The 2024 fold captures a sharp demand
-shift, which lets us ask the headline question: does a more sophisticated model
-actually buy robustness when the regime changes, or do simple seasonal
-baselines hold up just as well under stress?
+a rolling-origin protocol over 2021-2024. The 2024 fold captures a single, sharp
+demand contraction, which lets us ask a focused question: when the regime
+changes, does a more sophisticated model hold up better than a simple seasonal
+baseline, or not? Because the evidence rests on one crisis year (twelve months),
+the results are best read as a significance-tested case study rather than a
+general verdict on model families.
 
 Eighteen forecasters are compared on the same folds: seasonal-naive,
 ARIMA/SARIMA/SARIMAX, Prophet, LightGBM (with and without ONI), GRU, LSTM (with
