@@ -11,7 +11,9 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import matplotlib.dates as mdates
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
 import config as C
 from src import data, oni
@@ -25,6 +27,21 @@ LABEL = {"ecuador": "Ecuador", "brazil": "Brazil", "europe": "EU countries"}
 CORE = ["naive", "snaive", "swa3", "ets", "theta", "comb", "sarima", "prophet", "lgbm",
         "lgbm_oni_x1", "gru", "lstm", "bilstm", "nbeats", "nhits", "patchtst", "dlinear",
         "tide", "chronos", "timesfm", "moirai", "median_all", "fixed_share"]
+
+
+# One model per family, so every line keeps its own colour and marker.
+ONE_PER_FAMILY = ["swa3", "sarima", "lgbm", "lstm", "patchtst", "moirai", "median_all"]
+
+
+def _log_axis(ax, values):
+    """Log scale with plain tick labels (0.5, 1, 2, 3...) instead of 2x10^0."""
+    ax.set_xscale("log")
+    lo, hi = np.nanmin(values) * 0.9, np.nanmax(values) * 1.1
+    ticks = [t for t in (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 8) if lo <= t <= hi]
+    ax.set_xlim(lo, hi)
+    ax.xaxis.set_major_locator(FixedLocator(ticks))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
 
 
 def _table(dataset, name, **kw):
@@ -173,7 +190,8 @@ def fig_degradation():
     tabs = {d: t for d, t in tabs.items() if t is not None}
     if not tabs:
         return
-    fig, axes = plt.subplots(1, len(tabs), figsize=(S.DOUBLE, 5.2), sharey=False)
+    fig, axes = plt.subplots(1, len(tabs), figsize=(S.DOUBLE, 5.4), sharey=False,
+                             gridspec_kw={"wspace": 0.55})
     axes = np.atleast_1d(axes)
     for ax, (d, t) in zip(axes, tabs.items()):
         t = t.sort_values("ratio", ascending=False).reset_index(drop=True)
@@ -184,8 +202,8 @@ def fig_degradation():
                     ms=4, ls="")
             ax.plot(row["mase_shift"], i, marker=S.MARKER[fam], color=S.COLOR[fam], ms=4, ls="")
         ax.set_yticks(range(len(t)), t["model"], fontsize=6)
-        ax.set_xscale("log")
-        ax.set_xlabel("MASE (open: stable, filled: shift)")
+        _log_axis(ax, np.r_[t["mase_stable"], t["mase_shift"]])
+        ax.set_xlabel("MASE (open: stable,\nfilled: shift)")
         ax.set_title(LABEL[d])
         ax.grid(axis="x")
         ax.grid(axis="y", visible=False)
@@ -215,8 +233,11 @@ def fig_on_the_line():
             g = S.GROUP[fam]
             ax.plot(row["mase_stable"], row["mase_shift"], marker=S.MARKER[fam], ls="",
                     color=S.GROUP_COLOR[g], ms=4.5, mec="white", mew=0.4)
-        lo = min(t["mase_stable"].min(), t["mase_shift"].min()) * 0.9
-        hi = max(t["mase_stable"].max(), t["mase_shift"].max()) * 1.1
+        x0, x1 = t["mase_stable"].min() * 0.9, t["mase_stable"].max() * 1.1
+        y0, y1 = t["mase_shift"].min() * 0.9, t["mase_shift"].max() * 1.1
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(y0, y1)
+        lo, hi = min(x0, y0), max(x1, y1)
         ax.plot([lo, hi], [lo, hi], color=S.AXIS, lw=0.6, ls="--")
         line = _table(d, "on_the_line.csv")
         if line is not None:
@@ -228,40 +249,43 @@ def fig_on_the_line():
         ax.grid(axis="both")
     axes[0].set_ylabel("MASE, shift months")
     handles = [plt.Line2D([], [], color=c, marker="o", ls="", ms=5) for c in S.GROUP_COLOR.values()]
-    fig.legend(handles, list(S.GROUP_COLOR), ncol=4, loc="lower center", bbox_to_anchor=(0.5, -0.08))
+    fig.subplots_adjust(wspace=0.3, bottom=0.25)
+    fig.legend(handles, list(S.GROUP_COLOR), ncol=4, loc="lower center", bbox_to_anchor=(0.5, -0.04))
     S.save(fig, "fig_on_the_line")
 
 
-def fig_mcs(dataset="ecuador"):
-    """F6. Which models stay in the 90% model confidence set in each regime."""
+def fig_mcs():
+    """F6. Models in the 90% model confidence set, for every dataset and every
+    regime long enough to test (see src.evaluate.MIN_TEST_MONTHS)."""
     cols = {}
-    for regime in ("all", "stable", "shift", "rebound"):
-        t = _table(dataset, f"mcs_{regime}.csv", index_col=0)
-        if t is not None:
-            cols[regime] = t["mcs_p"]
+    for d in DATASETS:
+        for regime in ("all", "stable", "shift", "rebound"):
+            t = _table(d, f"mcs_{regime}.csv", index_col=0)
+            if t is not None:
+                cols[f"{LABEL[d]}\n{regime}"] = t["mcs_p"]
     if not cols:
         return
     P = pd.DataFrame(cols)
-    P = P.loc[[m for m in CORE if m in P.index] or P.index]
-    fig, ax = plt.subplots(figsize=(S.SINGLE, 0.17 * len(P) + 0.8))
-    for j, regime in enumerate(P.columns):
+    P = P.loc[[m for m in CORE if m in P.index]]
+    fig, ax = plt.subplots(figsize=(S.DOUBLE * 0.7, 0.17 * len(P) + 1.0))
+    for j, col in enumerate(P.columns):
         for i, m in enumerate(P.index):
-            p = P.loc[m, regime]
+            p = P.loc[m, col]
             if np.isnan(p):
                 continue
-            inside = p >= 0.10
-            ax.plot(j, i, "o", ms=3 + 6 * min(p, 1), color=S.COLOR[S.family(m)] if inside else "white",
-                    mec=S.COLOR[S.family(m)], mew=0.8)
-    ax.set_xticks(range(len(P.columns)), P.columns)
+            c = S.COLOR[S.family(m)]
+            ax.plot(j, i, "o", ms=3 + 6 * min(p, 1), color=c if p >= 0.10 else "white",
+                    mec=c, mew=0.8)
+    ax.set_xticks(range(len(P.columns)), P.columns, fontsize=6.5)
     ax.set_yticks(range(len(P.index)), P.index, fontsize=6)
     ax.invert_yaxis()
     ax.set_xlim(-0.6, len(P.columns) - 0.4)
     ax.grid(False)
     ax.set_title("Filled: inside the 90% MCS; size: MCS p-value", fontsize=7, color=S.INK_2)
-    S.save(fig, f"fig_mcs_{dataset}")
+    S.save(fig, "fig_mcs")
 
 
-def fig_dm_matrix(dataset="ecuador", regime="shift"):
+def fig_dm_matrix(dataset="ecuador", regime="all"):
     """F7. Signed Diebold-Mariano statistics, Holm-significant pairs outlined."""
     t = _table(dataset, f"dm_{regime}.csv")
     if t is None:
@@ -334,8 +358,9 @@ def fig_trajectories(dataset="ecuador"):
     if shifts.empty:
         return
     starts = sorted(shifts[shifts.diff().dt.days.fillna(999) > 40])
-    picks = [m for m in ("snaive", "sarima", "lgbm", "lstm", "patchtst", "chronos") if m in set(err["model"])]
-    fig, axes = plt.subplots(1, len(starts), figsize=(S.DOUBLE, 2.4), sharey=False)
+    picks = [m for m in ONE_PER_FAMILY[:-1] if m in set(err["model"])]
+    last = err["date"].max()
+    fig, axes = plt.subplots(1, len(starts), figsize=(S.DOUBLE, 2.5), sharey=False)
     axes = np.atleast_1d(axes)
     for ax, s in zip(axes, starts):
         origin = s - pd.DateOffset(months=2)
@@ -354,7 +379,10 @@ def fig_trajectories(dataset="ecuador"):
                     label=m)
         ax.axvline(origin, color=S.AXIS, lw=0.6, ls="--")
         ax.set_title(f"Origin {origin:%Y-%m}", fontsize=7)
-        ax.set_xlim(origin - pd.DateOffset(months=12), origin + pd.DateOffset(months=12))
+        ax.set_xlim(origin - pd.DateOffset(months=12),
+                    min(origin + pd.DateOffset(months=12), last + pd.DateOffset(months=1)))
+        ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 7)))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     axes[0].set_ylabel("GWh per month")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, ncol=len(labels), loc="lower center", bbox_to_anchor=(0.5, -0.1))
@@ -374,15 +402,16 @@ def fig_episodes():
     if not rows:
         return
     rel = pd.concat(rows)
-    picks = [m for m in ("ets", "sarima", "lgbm", "lstm", "patchtst", "nhits", "chronos", "median_all")
-             if m in rel]
+    picks = [m for m in ONE_PER_FAMILY if m in rel]
     # EU episodes are summarised across countries by median and quartiles.
     eu = rel[rel["dataset"] == "europe"]
     groups = [(i, rel.loc[[i], picks]) for i in rel.index[rel["dataset"] != "europe"]]
     if not eu.empty:
         year = eu.index.str.split(":").str[1].str[:4]
         for y in sorted(set(year)):
-            groups.append((f"EU, {y} ({(year == y).sum()} countries)", eu.loc[year == y, picks]))
+            n = int((year == y).sum())
+            noun = "country" if n == 1 else "countries"
+            groups.append((f"EU, {y} ({n} {noun})", eu.loc[year == y, picks]))
     fig, ax = plt.subplots(figsize=(S.DOUBLE, 0.32 * len(groups) + 1.0))
     off = np.linspace(-0.3, 0.3, len(picks))
     for i, (name, g) in enumerate(groups):
@@ -396,7 +425,7 @@ def fig_episodes():
             if len(v) > 1:
                 ax.plot([v.quantile(0.25), v.quantile(0.75)], [i + off[k]] * 2, color=S.COLOR[fam], lw=1)
     ax.axvline(1, color=S.AXIS, lw=0.8)
-    ax.set_xscale("log")
+    _log_axis(ax, np.concatenate([g[1].to_numpy().ravel() for g in groups]))
     ax.set_yticks(range(len(groups)), [g[0] for g in groups], fontsize=7)
     ax.invert_yaxis()
     ax.set_xlabel("MASE relative to seasonal naive (below 1: better)")
@@ -443,35 +472,92 @@ def fig_oni_tiers(dataset="ecuador"):
     if acc is None:
         return
     groups = [("sarima", "sarimax"), ("lgbm", "lgbm_oni"), ("lstm", "lstm_oni")]
+    tiers = [("without ONI", "o", False), ("x1, persisted", "^", True),
+             ("x2, ARIMA forecast", "s", True), ("x3, realised (hindsight)", "D", False)]
     regimes = [r for r in ("stable", "shift") if r in set(acc["regime"])]
-    fig, axes = plt.subplots(1, len(regimes), figsize=(S.DOUBLE, 1.9), sharey=True)
+    fig, axes = plt.subplots(1, len(regimes), figsize=(S.DOUBLE, 1.9), sharey=True,
+                             gridspec_kw={"wspace": 0.15})
     axes = np.atleast_1d(axes)
-    tiers = ["none", "x1", "x2", "x3"]
     for ax, regime in zip(axes, regimes):
         a = acc[acc["regime"] == regime].set_index("model")["MASE"]
         for i, (base, ext) in enumerate(groups):
-            vals = [a.get(base), a.get(f"{ext}_x1"), a.get(f"{ext}_x2"), a.get(f"{ext}_x3")]
-            fam = S.family(base)
-            for k, v in enumerate(vals):
-                if v is None or np.isnan(v):
-                    continue
-                ax.plot(v, i + (k - 1.5) * 0.15, marker="o" if k < 3 else "D", ls="",
-                        color=S.COLOR[fam], mfc=S.COLOR[fam] if k in (1, 2) else "white", ms=4)
+            names = [base, f"{ext}_x1", f"{ext}_x2", f"{ext}_x3"]
+            c = S.COLOR[S.family(base)]
+            for k, (name, (_, marker, filled)) in enumerate(zip(names, tiers)):
+                if name in a:
+                    ax.plot(a[name], i + (k - 1.5) * 0.16, marker=marker, ls="", ms=4.5,
+                            color=c, mfc=c if filled else "white")
         ax.set_yticks(range(len(groups)), [g[0] for g in groups])
         ax.set_title(f"{regime} months", fontsize=7)
         ax.set_xlabel("MASE")
         ax.grid(axis="x")
         ax.grid(axis="y", visible=False)
     axes[0].invert_yaxis()
-    fig.text(0.5, -0.06, "From top to bottom in each group: without ONI, x1 (persisted), "
-             "x2 (ARIMA forecast), x3 (realised values, hindsight)", ha="center", fontsize=7,
-             color=S.INK_2)
+    handles = [plt.Line2D([], [], marker=m, ls="", color=S.INK_2,
+                          mfc=S.INK_2 if f else "white", ms=5) for _, m, f in tiers]
+    fig.legend(handles, [t[0] for t in tiers], ncol=4, loc="lower center",
+               bbox_to_anchor=(0.5, -0.12))
     S.save(fig, f"fig_oni_{dataset}")
+
+
+def fig_cd():
+    """F13. Critical-difference diagram over the independent shift episodes."""
+    ranks_path = C.TABLES / "pooled" / "ranks.csv"
+    if not ranks_path.exists():
+        return
+    ranks = pd.read_csv(ranks_path, index_col=0)["mean_rank"].sort_values()
+    fr = pd.read_csv(C.TABLES / "pooled" / "friedman.csv").iloc[0]
+    nem = pd.read_csv(C.TABLES / "pooled" / "nemenyi.csv", index_col=0)
+    k = len(ranks)
+    half = (k + 1) // 2
+    fig, ax = plt.subplots(figsize=(S.DOUBLE, 0.2 * half + 1.6))
+    lo, hi = np.floor(ranks.min()), np.ceil(ranks.max())
+    ax.set_xlim(lo - 0.5, hi + 0.5)
+    ax.set_ylim(-(1.6 + 0.9 * half), 1.5)
+    ax.axhline(0, color=S.INK, lw=0.8)
+    for r in np.arange(lo, hi + 1):
+        ax.plot([r, r], [0, 0.15], color=S.INK, lw=0.6)
+        ax.text(r, 0.3, f"{r:.0f}", ha="center", fontsize=7)
+    for i, (m, r) in enumerate(ranks.items()):
+        left = i < half
+        j = i if left else k - 1 - i
+        y = -1.6 - j * 0.9
+        xt = lo - 0.4 if left else hi + 0.4
+        fam = S.family(m)
+        ax.plot([r, r], [0, y], color=S.AXIS, lw=0.5)
+        ax.plot([r, xt], [y, y], color=S.AXIS, lw=0.5)
+        ax.plot(r, 0, marker=S.MARKER[fam], color=S.COLOR[fam], ms=4)
+        ax.text(xt + (-0.05 if left else 0.05), y, m, ha="right" if left else "left",
+                va="center", fontsize=6.5)
+    # Bars join runs of models whose Nemenyi test does not separate them; runs
+    # contained in a longer one are dropped, and each bar takes the first row
+    # where it does not overlap another.
+    order = list(ranks.index)
+    runs = []
+    for a in range(k):
+        b = a
+        while b + 1 < k and nem.loc[order[a], order[b + 1]] > 0.05:
+            b += 1
+        if b > a and not any(sa <= a and b <= sb for sa, sb in runs):
+            runs.append((a, b))
+    rows = []
+    for a, b in runs:
+        x0, x1 = ranks.iloc[a] - 0.05, ranks.iloc[b] + 0.05
+        row = next((i for i, used in enumerate(rows) if all(x0 > e + 0.2 or x1 < s - 0.2
+                                                           for s, e in used)), len(rows))
+        if row == len(rows):
+            rows.append([])
+        rows[row].append((x0, x1))
+        ax.plot([x0, x1], [-0.3 - 0.22 * row] * 2, color=S.INK, lw=1.6, solid_capstyle="butt")
+    ax.plot([lo, lo + fr["cd"]], [1.0, 1.0], color=S.INK, lw=1.2)
+    ax.text(lo + fr["cd"] / 2, 1.15, f"CD = {fr['cd']:.2f}", ha="center", fontsize=7)
+    ax.axis("off")
+    S.save(fig, "fig_cd_episodes")
 
 
 FIGURES = [fig_series, fig_protocol, fig_error_heatmap, fig_degradation, fig_on_the_line,
            fig_mcs, fig_dm_matrix, fig_fluctuation, fig_trajectories, fig_episodes,
-           fig_ras_grid, fig_oni_tiers]
+           fig_ras_grid, fig_oni_tiers, fig_cd]
 
 
 def main() -> None:
