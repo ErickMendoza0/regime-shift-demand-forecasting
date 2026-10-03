@@ -50,16 +50,58 @@ def _monthly(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(out, ignore_index=True)
 
 
-def _ecuador() -> tuple[pd.DataFrame, pd.DataFrame]:
-    raw = pd.read_csv(C.ECUADOR_CSV, encoding="latin-1", sep=";", decimal=",")
-    if len(raw) < 100_000:
+ARCONEL_COLUMNS = ["Anio", "Mes", "Empresa", "Grupo Consumo", "Provincia", "Canton",
+                   "Parroquia", "Numero Clientes", "Energia Facturada (kWh)"]
+
+
+def _read_arconel() -> pd.DataFrame:
+    """The 2014-2024 consolidated CSV plus the yearly Excel extracts that came
+    later (same columns, header on the second row)."""
+    parts = [pd.read_csv(C.ECUADOR_CSV, encoding="latin-1", sep=";", decimal=",")]
+    if len(parts[0]) < 100_000:
         # data/raw once held a small mock file with this same name; refuse it.
-        raise ValueError(f"{C.ECUADOR_CSV} has only {len(raw)} rows; "
+        raise ValueError(f"{C.ECUADOR_CSV} has only {len(parts[0])} rows; "
                          "this is not the ARCONEL extract")
+    parts += [pd.read_excel(f, header=1) for f in sorted(C.RAW.glob(C.ECUADOR_EXTRACTS))]
+    raw = pd.concat([p[ARCONEL_COLUMNS] for p in parts], ignore_index=True)
     raw["date"] = pd.to_datetime(
         raw["Anio"].astype(int).astype(str) + "-"
         + raw["Mes"].map(MONTHS).astype(int).astype(str), format="%Y-%m")
     raw["y"] = pd.to_numeric(raw["Energia Facturada (kWh)"], errors="coerce") / 1e6
+    raw["clients"] = pd.to_numeric(raw["Numero Clientes"], errors="coerce").fillna(0)
+    return raw
+
+
+def reporting_gaps(raw: pd.DataFrame) -> pd.DataFrame:
+    """Distributor-months with no real billing record.
+
+    A distributor that bills fewer than half the customers it billed, by median,
+    over the previous six months did not report that month; the extracts show
+    such months as zero customers and zero energy. The rule only looks back, so
+    it could be applied as each month is published. The last months of the
+    extract, while a third or more of the distributors are missing, are an
+    unfinished download and are dropped altogether.
+    """
+    clients = raw.groupby(["Empresa", "date"])["clients"].sum().unstack("Empresa")
+    clients = clients.reindex(pd.date_range(clients.index.min(), clients.index.max(),
+                                            freq="MS")).fillna(0)
+    usual = clients.shift(1).rolling(6, min_periods=3).median()
+    gap = clients < 0.5 * usual
+    share = gap.mean(axis=1)
+    incomplete = set()
+    for d in share.index[::-1]:          # only a run of months at the very end
+        if share[d] < 1 / 3:
+            break
+        incomplete.add(d)
+    rows = [{"date": d, "company": c, "clients": clients.loc[d, c],
+             "usual_clients": usual.loc[d, c], "incomplete_month": d in incomplete}
+            for c in gap.columns for d in gap.index[gap[c]]]
+    return pd.DataFrame(rows, columns=["date", "company", "clients", "usual_clients",
+                                       "incomplete_month"])
+
+
+def _ecuador() -> tuple[pd.DataFrame, pd.DataFrame]:
+    raw = _read_arconel()
     canton = raw["Canton"].astype(str).str.upper()
     for c, p in PROVINCE_FIXES.items():
         raw.loc[canton == c, "Provincia"] = p
@@ -67,7 +109,20 @@ def _ecuador() -> tuple[pd.DataFrame, pd.DataFrame]:
     raw["group"] = raw["Grupo Consumo"].astype(str)
     raw = raw[raw["province"].isin(COORDS)].dropna(subset=["y"])
 
+    gaps = reporting_gaps(raw)
+    C.PANELS.mkdir(parents=True, exist_ok=True)
+    gaps.to_csv(C.PANELS / "ecuador_reporting_gaps.csv", index=False)
+    raw = raw[~raw["date"].isin(gaps.loc[gaps["incomplete_month"], "date"])]
+
     agg = raw.groupby(["group", "province", "date"], as_index=False)["y"].sum()
+    # A series a missing distributor normally bills into is unknown that month,
+    # not lower: blank it so it is filled in training and left out of scoring.
+    serves = {c: set(zip(g["group"], g["province"])) for c, g in raw.groupby("Empresa")}
+    pairs = pd.Series(list(zip(agg["group"], agg["province"])), index=agg.index)
+    for _, g in gaps[~gaps["incomplete_month"]].iterrows():
+        hit = pairs.map(lambda k: k in serves[g["company"]]) & (agg["date"] == g["date"])
+        agg.loc[hit, "y"] = np.nan
+
     keys = agg[["group", "province"]].drop_duplicates().sort_values(["group", "province"])
     keys["series_id"] = [f"ec{i:03d}" for i in range(len(keys))]
     agg = agg.merge(keys, on=["group", "province"])
@@ -117,9 +172,23 @@ def load(dataset: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def actuals(panel: pd.DataFrame, static: pd.DataFrame) -> pd.DataFrame:
-    """Observed value of every target per month, from the raw (unfilled) data."""
-    df = panel.merge(static[["series_id", "target"]], on="series_id")
-    out = df.groupby(["target", "date"])["y"].sum(min_count=1).rename("y").reset_index()
+    """Observed value of every target per month.
+
+    A hole inside a series (between its first and last observation) makes the
+    target's total unknown that month. If the series missing that month weigh
+    more than MAX_HOLE_SHARE of the target, the month is left out; smaller holes,
+    such as an unreported month of public lighting in a small province, are
+    filled by interpolating the series so the month can still be scored.
+    """
+    df = panel.merge(static[["series_id", "target"]], on="series_id").sort_values(
+        ["series_id", "date"])
+    df["filled"] = df.groupby("series_id")["y"].transform(
+        lambda s: s.interpolate(limit_area="inside"))
+    hole = df["y"].isna() & df["filled"].notna()
+    total = df.groupby(["target", "date"])["filled"].sum(min_count=1)
+    missing = df[hole].groupby(["target", "date"])["filled"].sum()
+    share = (missing / total).reindex(total.index).fillna(0)
+    out = total[share <= C.MAX_HOLE_SHARE].rename("y").reset_index()
     return out.dropna()
 
 

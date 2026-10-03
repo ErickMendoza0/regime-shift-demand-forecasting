@@ -18,6 +18,7 @@ TABLES = WORK / "tables"
 FIGURES = WORK / "figures"
 
 ECUADOR_CSV = RAW / "Datos_Energeticos_Ecuador_2014_2024.csv"
+ECUADOR_EXTRACTS = "ARCONEL_Ecuador_*.xlsx"      # yearly extracts from 2025 on
 ONI_TXT = RAW / "oni.ascii.txt"
 BRAZIL_CSV = RAW / "brazil_ipeadata.csv"
 EUROPE_CSV = RAW / "europe_nrg_cb_em.csv"
@@ -58,6 +59,10 @@ DATASETS = {
 MIN_MONTHS = 36
 MAX_BAD_YEARS = 2
 MAX_MISSING_PER_YEAR = 2
+
+# A target month whose missing series weigh more than this share of the total
+# is not scored (see data.actuals).
+MAX_HOLE_SHARE = 0.005
 
 # ONI is a centred three-month mean that CPC publishes about a week after the
 # last month closes, so at an origin the newest usable value is centred two

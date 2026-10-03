@@ -33,8 +33,9 @@ def mase_scale(truth: pd.DataFrame, origin) -> pd.Series:
     past = truth[truth["date"] < pd.Timestamp(origin)]
     out = {}
     for t, g in past.groupby("target"):
-        y = g.sort_values("date")["y"].to_numpy(float)
-        out[t] = np.mean(np.abs(y[C.SEASON:] - y[:-C.SEASON]))
+        # Months left out of the truth (reporting gaps) must not shift the lag.
+        y = g.set_index("date")["y"].asfreq("MS")
+        out[t] = float((y - y.shift(C.SEASON)).abs().mean())
     return pd.Series(out)
 
 

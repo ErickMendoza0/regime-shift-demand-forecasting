@@ -52,3 +52,36 @@ def test_oni_persist_tier_freezes_last_published_value():
     assert np.all(x1 == oni["2018-11-01"])
     x3 = O.horizon(oni, "2019-01-01", dates, "x3")
     assert x3[-1] == oni["2019-10-01"]
+
+
+def _billing(clients_by_month):
+    rows = []
+    for i, n in enumerate(clients_by_month):
+        d = pd.Timestamp("2020-01-01") + pd.DateOffset(months=i)
+        rows.append({"Empresa": "A", "date": d, "clients": n})
+        rows.append({"Empresa": "B", "date": d, "clients": 100})
+    return pd.DataFrame(rows)
+
+
+def test_a_distributor_that_did_not_report_is_a_gap():
+    gaps = data.reporting_gaps(_billing([100] * 8 + [0] + [100] * 3))
+    assert list(gaps["company"]) == ["A"]
+    assert gaps["date"].iloc[0] == pd.Timestamp("2020-09-01")
+    assert not gaps["incomplete_month"].any()
+
+
+def test_unknown_months_are_left_out_of_the_truth():
+    dates = pd.date_range("2020-01-01", periods=6, freq="MS")
+    panel = pd.DataFrame({"series_id": ["a"] * 6 + ["b"] * 6, "date": list(dates) * 2,
+                          "y": [1, 1, np.nan, 1, 1, 1] + [2] * 6})
+    static = pd.DataFrame({"series_id": ["a", "b"], "target": "T"})
+    truth = data.actuals(panel, static)
+    assert pd.Timestamp("2020-03-01") not in set(truth["date"])
+    assert len(truth) == 5
+
+
+def test_an_unfinished_last_month_is_flagged():
+    billing = _billing([100] * 10 + [0])
+    billing.loc[(billing["Empresa"] == "B") & (billing["date"] == billing["date"].max()), "clients"] = 0
+    gaps = data.reporting_gaps(billing)
+    assert gaps["incomplete_month"].all() and len(gaps) == 2

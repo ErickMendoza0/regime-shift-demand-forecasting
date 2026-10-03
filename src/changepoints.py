@@ -143,7 +143,9 @@ def _one_target(target, g, seed):
 
     rng = np.random.default_rng(seed)
     rows = []
-    y = g.set_index("date")["y"].asfreq("MS")
+    # Months whose total is unknown (reporting gaps) are interpolated here, for
+    # dating the breaks only.
+    y = g.set_index("date")["y"].asfreq("MS").interpolate(limit_area="inside")
     growth = yoy(y)
     dates, x = growth.index, growth.to_numpy(float)
     bk = segment(x)
