@@ -31,7 +31,8 @@ def _build(name, p, h, seed):
         n = int(p["n_blocks"])
         w = int(p["width"])
         return NBEATS(n_blocks=[n, n, n], mlp_units=[[w, w]] * 3,
-                      dropout_prob_theta=float(p["dropout_prob_theta"]), **common)
+                      n_basis=int(p["n_basis"]), n_harmonics=int(p["n_harmonics"]),
+                      **common)
     if name == "nhits":
         w = int(p["width"])
         return NHITS(n_pool_kernel_size=_blocks(p["pooling"]),

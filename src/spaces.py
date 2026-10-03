@@ -53,11 +53,14 @@ SPACES = {
     "gru": _recurrent,
     "lstm": _recurrent,
     "bilstm": _recurrent,
+    # neuralforecast does not implement dropout for N-BEATS, so its space varies
+    # the trend and seasonality bases instead.
     "nbeats": lambda t: {
         **_neural_common(t),
         "n_blocks": t.suggest_categorical("n_blocks", [1, 2, 3]),
         "width": t.suggest_categorical("width", [128, 256, 512]),
-        "dropout_prob_theta": t.suggest_float("dropout_prob_theta", 0.0, 0.3),
+        "n_basis": t.suggest_categorical("n_basis", [1, 2, 3]),
+        "n_harmonics": t.suggest_categorical("n_harmonics", [1, 2]),
     },
     "nhits": lambda t: {
         **_neural_common(t),
@@ -98,7 +101,7 @@ DEFAULTS = {
     "lgbm": boosting.DEFAULTS,
     "lgbm_oni": boosting.DEFAULTS,
     **recurrent.DEFAULTS,
-    "nbeats": {**NEURAL_DEFAULTS, "n_blocks": 1, "width": 512, "dropout_prob_theta": 0.0},
+    "nbeats": {**NEURAL_DEFAULTS, "n_blocks": 1, "width": 512, "n_basis": 2, "n_harmonics": 2},
     "nhits": {**NEURAL_DEFAULTS, "pooling": "2-2-1", "downsample": "4-2-1", "width": 512,
               "dropout_prob_theta": 0.0},
     "patchtst": {**NEURAL_DEFAULTS, "patch_len": 8, "overlap": False, "hidden_size": 128,
