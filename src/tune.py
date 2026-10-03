@@ -93,10 +93,13 @@ def main() -> None:
     ap.add_argument("--task", type=int)
     ap.add_argument("--part", type=int)
     ap.add_argument("--parts", type=int)
+    ap.add_argument("--models", nargs="*", help="only tune these models from the job list")
     ap.add_argument("--trials", type=int, default=C.TUNING_TRIALS)
     a = ap.parse_args()
     if a.jobs:
         jobs = pd.read_csv(a.jobs)
+        if a.models:
+            jobs = jobs[jobs["model"].isin(a.models)].reset_index(drop=True)
         if a.task is not None:
             jobs = jobs.iloc[[a.task]]
         else:
