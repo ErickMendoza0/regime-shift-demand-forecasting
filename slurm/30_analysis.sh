@@ -12,4 +12,5 @@ for d in ecuador brazil europe; do
   python -m src.combine --dataset "$d"
   python -m src.evaluate --dataset "$d"
 done
+python -m src.pooled
 python -m src.figures

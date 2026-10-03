@@ -139,11 +139,14 @@ def friedman_nemenyi(X: pd.DataFrame):
 
 
 def bayes_signed_rank(x: np.ndarray, y: np.ndarray, rope: float = 0.01, seed: int = 0):
-    """Benavoli et al. (2017) Bayesian signed-rank test on relative differences
-    across independent blocks: P(x better), P(practically equal), P(y better)."""
+    """Benavoli et al. (2017) Bayesian signed-rank test across independent
+    blocks. x and y are losses; the test runs on the relative loss reduction of
+    x over y, so the ROPE is a fraction of y's loss. Returns P(x has the lower
+    loss), P(practically equal) and P(y has the lower loss)."""
     import baycomp
-    rel = (np.asarray(x) - np.asarray(y)) / np.asarray(y)
-    p = baycomp.SignedRankTest.probs(rel, np.zeros_like(rel), rope=rope, random_state=seed)
+    gain = (np.asarray(y, float) - np.asarray(x, float)) / np.asarray(y, float)
+    np.random.seed(seed)
+    p = baycomp.SignedRankTest.probs(gain, np.zeros_like(gain), rope=rope)
     return {"p_first_better": p[0], "p_rope": p[1], "p_second_better": p[2]}
 
 
