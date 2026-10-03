@@ -21,6 +21,7 @@ from src import plot_style as S
 
 DATASETS = ("ecuador", "brazil", "europe")
 LABEL = {"ecuador": "Ecuador", "brazil": "Brazil", "europe": "EU countries"}
+SHORT = {"ecuador": "EC", "brazil": "BR", "europe": "EU"}
 
 # A short list for the dense figures: the references plus the best-known
 # member of every family.
@@ -262,7 +263,7 @@ def fig_mcs():
         for regime in ("all", "stable", "shift", "rebound"):
             t = _table(d, f"mcs_{regime}.csv", index_col=0)
             if t is not None:
-                cols[f"{LABEL[d]}\n{regime}"] = t["mcs_p"]
+                cols[f"{SHORT[d]}\n{regime}"] = t["mcs_p"]
     if not cols:
         return
     P = pd.DataFrame(cols)
