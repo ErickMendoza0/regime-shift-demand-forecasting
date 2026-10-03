@@ -14,7 +14,6 @@ import json
 import time
 from pathlib import Path
 
-import optuna
 import pandas as pd
 
 import config as C
@@ -48,6 +47,10 @@ def params(dataset, model, origin) -> dict:
 
 
 def study(dataset, model, at, trials=C.TUNING_TRIALS) -> dict:
+    # Imported here so the runner can read tuned parameters in environments
+    # without Optuna (the foundation-model ones).
+    import optuna
+
     at = pd.Timestamp(at)
     panel, static = data.load(dataset)
     truth = data.actuals(panel, static)
