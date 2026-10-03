@@ -55,11 +55,30 @@ def mcs(L: pd.DataFrame, size: float = 0.10, block: int = 6, reps: int = 5000, s
     """Model confidence set (Hansen, Lunde and Nason, 2011) with a stationary
     bootstrap. Returns each model's MCS p-value and whether it is in the set."""
     from arch.bootstrap import MCS
-    m = MCS(L.dropna(), size=size, reps=reps, block_size=block, method="R",
-            bootstrap="stationary", seed=seed)
-    m.compute()
-    p = m.pvalues["Pvalue"]
-    return pd.DataFrame({"mcs_p": p, "in_mcs": p >= size}).sort_values("mcs_p", ascending=False)
+    L = L.dropna()
+    # Models with identical losses (a switching rule that never switched, for
+    # instance) make the differences degenerate; test one copy and give the
+    # others the same p-value.
+    dup = L.round(12).T.duplicated()
+    same_as = {c: next(k for k in L.columns[~dup] if np.allclose(L[c], L[k]))
+               for c in L.columns[dup]}
+    U = L.loc[:, ~dup]
+    try:
+        m = MCS(U, size=size, reps=reps, block_size=block, method="R",
+                bootstrap="stationary", seed=seed)
+        m.compute()
+        method = "R"
+    except (IndexError, ValueError, np.linalg.LinAlgError):
+        m = MCS(U, size=size, reps=reps, block_size=block, method="max",
+                bootstrap="stationary", seed=seed)
+        m.compute()
+        method = "max"
+    p = m.pvalues["Pvalue"].reindex(L.columns)
+    for c, k in same_as.items():
+        p[c] = p[k]
+    out = pd.DataFrame({"mcs_p": p, "in_mcs": p >= size, "statistic": method,
+                        "same_as": pd.Series(same_as).reindex(L.columns)})
+    return out.sort_values("mcs_p", ascending=False)
 
 
 @lru_cache(maxsize=None)
