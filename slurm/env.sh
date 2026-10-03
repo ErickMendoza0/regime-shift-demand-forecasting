@@ -10,3 +10,6 @@ export HF_HOME="${HF_HOME_LOCAL:-$HOME/hf_cache}" HF_HUB_OFFLINE=1
 export TMPDIR=/tmp
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
+# Queue limits on our cluster: medium allows the whole group 112 CPUs and 4 GPUs,
+# short has no group limit but a 4-hour wall clock, so the CPU stages are split
+# into parts small enough for short.
