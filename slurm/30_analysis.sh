@@ -14,3 +14,4 @@ for d in ecuador brazil europe; do
 done
 python -m src.pooled
 python -m src.figures
+python -m src.summary
