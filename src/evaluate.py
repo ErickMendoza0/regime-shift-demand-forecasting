@@ -18,6 +18,8 @@ Tables written to work/tables/<dataset>/:
   gw.csv             Giacomini-White tests of regime-dependent performance
   fluctuation.csv    Giacomini-Rossi fluctuation paths for key pairs
   episodes.csv       mean MASE per (target, shift episode), the blocks for E9
+  sensitivity.csv    Ecuador only: MASE and MCS membership under the four
+                     drought windows fixed in docs/preregistration.md
 """
 import argparse
 
@@ -30,6 +32,12 @@ from src import data, forecast, inference
 
 LAG = 11                     # target-month losses pool horizons 1..12
 ORACLE = "_x3"               # hindsight ONI tier, kept out of every ranking
+
+# Alternative definitions of the 2024 drought window (preregistered). The
+# "detected" window is whatever the change-point analysis labels as shift.
+DROUGHT_WINDOWS = {"all 2024": ("2024-01", "2024-12"),
+                   "Sep-Dec 2024": ("2024-09", "2024-12"),
+                   "Oct 2023-Dec 2024": ("2023-10", "2024-12")}
 
 
 def collect(dataset: str) -> pd.DataFrame:
@@ -126,6 +134,22 @@ def episodes(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(out) if out else pd.DataFrame()
 
 
+def sensitivity(df: pd.DataFrame) -> pd.DataFrame:
+    detected = df[(df["regime"] == "shift") & (df["date"] >= "2023-01-01")]["date"]
+    windows = {**DROUGHT_WINDOWS, "detected": (f"{detected.min():%Y-%m}", f"{detected.max():%Y-%m}")}
+    rows = []
+    for name, (a, b) in windows.items():
+        sub = df[(df["date"] >= a) & (df["date"] <= pd.Timestamp(b))]
+        L = sub.groupby(["target", "date", "model"])["sae"].mean().unstack("model").dropna(axis=1)
+        mcs = inference.mcs(L) if len(L) >= 3 else None
+        for m, v in L.mean().items():
+            rows.append({"window": name, "start": a, "end": b, "months": len(L), "model": m,
+                         "MASE": v, "in_mcs": None if mcs is None else bool(mcs.loc[m, "in_mcs"])})
+    out = pd.DataFrame(rows)
+    out["rank"] = out.groupby("window")["MASE"].rank()
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True)
@@ -180,6 +204,9 @@ def main() -> None:
     gw.to_csv(out / "gw.csv", index=False)
     if fl:
         pd.concat(fl).to_csv(out / "fluctuation.csv", index=False)
+
+    if ds == "ecuador":
+        sensitivity(deployable).to_csv(out / "sensitivity.csv", index=False)
 
     ep = episodes(deployable)
     if not ep.empty:
