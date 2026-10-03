@@ -1,0 +1,6 @@
+# Environment regime2_moirai: Moirai 2.0. uni2ts pins PyTorch 2.4, which breaks
+# the transformers release Chronos needs, hence its own environment
+# (envs/regime2_moirai.lock.txt).
+uni2ts>=2.0
+pandas
+pyarrow

@@ -35,8 +35,7 @@ EU27 = ["AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR",
         "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO",
         "SE", "SI", "SK"]
 
-WEIGHTS = ["amazon/chronos-bolt-base", "google/timesfm-2.5-200m-pytorch",
-           "Salesforce/moirai-2.0-R-small"]
+WEIGHTS = ["amazon/chronos-2", "google/timesfm-3.0-pytorch", "Salesforce/moirai-2.0-R-small"]
 
 
 def fetch_oni() -> None:
