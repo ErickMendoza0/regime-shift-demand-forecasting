@@ -31,6 +31,9 @@ import config as C
 from src import data, forecast, inference
 
 LAG = 11                     # target-month losses pool horizons 1..12
+# With fewer target months than this, a HAC variance with lag 11 or a block
+# bootstrap means nothing, so DM and MCS are not run within that regime.
+MIN_TEST_MONTHS = 24
 ORACLE = "_x3"               # hindsight ONI tier, kept out of every ranking
 
 # Alternative definitions of the 2024 drought window (preregistered). The
@@ -178,7 +181,8 @@ def main() -> None:
 
     for regime in ("stable", "shift", "rebound", None):
         L = month_losses(deployable, regime)
-        if len(L) < 3:
+        if len(L) < MIN_TEST_MONTHS:
+            print(f"{regime}: {len(L)} target months, too few for DM and MCS")
             continue
         name = regime or "all"
         inference.pairwise_dm(L, LAG).to_csv(out / f"dm_{name}.csv", index=False)

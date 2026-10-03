@@ -89,4 +89,18 @@ are pooled per target month over all forecasts of that month.
 
 ## Changes after this date
 
-None yet.
+- 3 October 2026, during the campaign. neuralforecast 3.2 does not implement
+  dropout for N-BEATS, so every N-BEATS trial except the default failed. The
+  N-BEATS space now searches the trend and seasonality bases (`n_basis`,
+  `n_harmonics`) instead, and all N-BEATS studies and forecasts were redone
+  before any result was looked at.
+- 3 October 2026, after the first analysis run. Diebold-Mariano tests and the
+  model confidence set are only run within a regime that has at least 24 target
+  months. The Ecuadorian shift regime has 6 months and the rebound 3, fewer than
+  the HAC lag of 11, which made the variance degenerate. Inference about shift
+  months rests on the comparison across independent episodes.
+- 3 October 2026, after the first analysis run. An exploratory analysis was
+  added that is not part of this plan: the Spearman correlation, across
+  episodes, between the depth of a shift and the error of learned models
+  relative to classical ones (`src/pooled.py`, `depth.csv`). It is reported as
+  exploratory.
