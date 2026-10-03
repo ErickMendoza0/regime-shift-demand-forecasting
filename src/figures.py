@@ -81,12 +81,14 @@ def fig_series():
     axes[1].set_ylabel("Year-on-year\ngrowth (%)")
     # Interval bars only for the breaks that open or close a shift or rebound.
     edges = r[r["regime"] != r["regime"].shift()]["date"]
-    top = axes[1].get_ylim()[1]
+    low, top = axes[1].get_ylim()
+    axes[1].set_ylim(low, top + 0.25 * (top - low))
+    top = top + 0.15 * (top - low)
     for _, c in cps.iterrows():
         for ax in axes[:2]:
             ax.axvline(c["break"], color=S.AXIS, lw=0.6, ls="--", zorder=1)
         if c["break"] in set(edges):
-            axes[1].plot([c["ci_low"], c["ci_high"]], [top * 0.9] * 2, color=S.INK_2,
+            axes[1].plot([c["ci_low"], c["ci_high"]], [top] * 2, color=S.INK_2,
                          lw=1.2, marker="|", ms=5)
 
     colours = np.where(o.values >= 0, S.DIVERGING[2], S.DIVERGING[0])
