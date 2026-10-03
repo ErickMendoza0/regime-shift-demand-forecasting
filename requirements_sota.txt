@@ -1,7 +1,0 @@
-# Environment `energyq1_torch`: PyTorch-based SOTA forecasters.
-# torch itself is installed from the CUDA wheel index in setup_env.sh before
-# this file is applied.
-numpy<2.0
-pandas>=2.0
-pyarrow
-neuralforecast>=1.7
