@@ -12,6 +12,6 @@ tc=$(sbatch --parsable --dependency=afterok:$prep --array=0-$(( $(rows tune_cpu)
 tg=$(sbatch --parsable --dependency=afterok:$prep --array=0-3 slurm/11_tune_gpu.sh)
 rc=$(sbatch --parsable --dependency=afterok:$tc --array=0-63%24 slurm/20_run_cpu.sh)
 rg=$(sbatch --parsable --dependency=afterok:$tg --array=0-3 slurm/21_run_gpu.sh)
-rf=$(sbatch --parsable --dependency=afterok:$prep --array=0-1 slurm/22_run_fm.sh)
+rf=$(sbatch --parsable --dependency=afterok:$prep --array=0-2 slurm/22_run_fm.sh)
 an=$(sbatch --parsable --dependency=afterok:$rc:$rg:$rf slurm/30_analysis.sh)
 echo "prepare $prep | tune $tc $tg | run $rc $rg $rf | analysis $an"
