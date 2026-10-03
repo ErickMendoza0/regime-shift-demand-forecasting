@@ -1,74 +1,110 @@
-"""Central configuration: paths, evaluation protocol, model registry.
+"""Paths, evaluation protocol and model registry.
 
-Paths default to a `work/` directory next to this file but can be redirected
-with the ENERGY_WORK environment variable so the same code runs on a laptop
-and on a cluster.
+Everything written by the pipeline goes under WORK, which can be moved with the
+REGIME_WORK environment variable so one checkout serves a laptop and the cluster.
 """
 import os
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent
-WORK = Path(os.environ.get("ENERGY_WORK", REPO_ROOT / "work"))
+ROOT = Path(__file__).resolve().parent
+RAW = ROOT / "data" / "raw"
+WORK = Path(os.environ.get("REGIME_WORK", ROOT / "work"))
 
-DATA_RAW = REPO_ROOT / "data" / "raw"
-DATA_PROCESSED = WORK / "processed"
-RESULTS = WORK / "results"
-PREDS = RESULTS / "preds"
-TABLES = RESULTS / "tables"
-FIGURES = RESULTS / "figures"
-LOGS = REPO_ROOT / "logs"
+PANELS = WORK / "panels"
+JOBS = WORK / "jobs"
+TUNING = WORK / "tuning"
+PREDS = WORK / "preds"
+TABLES = WORK / "tables"
+FIGURES = WORK / "figures"
 
-RAW_CSV = DATA_RAW / "Datos_Energeticos_Ecuador_2014_2024.csv"
-ONI_CSV = DATA_RAW / "oni.csv"
+ECUADOR_CSV = RAW / "Datos_Energeticos_Ecuador_2014_2024.csv"
+ONI_TXT = RAW / "oni.ascii.txt"
+BRAZIL_CSV = RAW / "brazil_ipeadata.csv"
+EUROPE_CSV = RAW / "europe_nrg_cb_em.csv"
 
-# Rolling-origin (expanding window) evaluation. For each fold the models are
-# trained on every month strictly before January of `test_year` and produce a
-# recursive 12-month forecast for that year. 2021-2023 form the "stable"
-# regime; 2024 is the demand-shift stress test.
-FOLD_YEARS = [2021, 2022, 2023, 2024]
-STABLE_YEARS = [2021, 2022, 2023]   # pooled stable regime (36 test months)
-CRISIS_YEARS = [2024]               # pooled crisis regime (12 test months)
 HORIZON = 12
+SEASON = 12
 
-# Sub-series admissibility: drop a series if more than MAX_BAD_YEARS of its
-# years have more than MAX_MISSING_PER_YEAR missing months, or if it is shorter
-# than MIN_MONTHS.
-MIN_MONTHS = 120
+# Forecast origins are the first month of each 12-month forecast, so an origin
+# of 2024-01 sees data up to 2023-12. Brazil is evaluated in two blocks, one
+# around the 2001 rationing and one around COVID-19.
+DATASETS = {
+    "ecuador": {
+        "train_start": "2014-01",
+        "origins": [("2019-01", None)],          # None: last month with data
+        "seeds": [1, 2, 3, 4, 5],
+        "retune": "yearly",
+        "exogenous": True,
+    },
+    "brazil": {
+        "train_start": "1990-01",
+        "origins": [("1999-01", "2003-12"), ("2018-01", "2022-12")],
+        "seeds": [1, 2, 3],
+        "retune": "block",
+        "exogenous": False,
+    },
+    "europe": {
+        "train_start": "2008-01",
+        "origins": [("2018-01", None)],
+        "seeds": [1, 2, 3],
+        "retune": "block",
+        "exogenous": False,
+    },
+}
+
+# Ecuador sub-series admissibility, applied at every origin with the data seen
+# so far: at least MIN_MONTHS of history and no more than MAX_BAD_YEARS calendar
+# years with more than MAX_MISSING_PER_YEAR missing months.
+MIN_MONTHS = 36
 MAX_BAD_YEARS = 2
 MAX_MISSING_PER_YEAR = 2
 
-SEED = 42
+# ONI is a centred three-month mean that CPC publishes about a week after the
+# last month closes, so at an origin the newest usable value is centred two
+# months back.
+ONI_LAG = 2
 
-# Model registry: name -> (module, needs_gpu)
+TUNING_TRIALS = 50
+
+# Model registry. `kind` decides which job list and environment run the model:
+# "cpu" and "gpu" use the regime2 environment, "fm" the foundation-model one.
+# `tier` lists the ONI information tiers a model is run with (see src/oni.py).
 MODELS = {
-    "seasonal_naive": ("models_stat", False),
-    "arima_agg":      ("models_stat", False),   # ARIMA(1,1,1) on the national series
-    "arima_dis":      ("models_stat", False),   # per-subseries auto_arima
-    "sarima_dis":     ("models_stat", False),   # per-subseries seasonal auto_arima
-    "sarimax_dis":    ("models_stat", False),   # SARIMA + ONI exogenous
-    "prophet_dis":    ("models_ml", False),
-    "lgbm":           ("models_ml", False),     # global LightGBM with lag features
-    "lgbm_exog":      ("models_ml", False),     # + ONI features
-    "gru":            ("models_dl", True),
-    "lstm":           ("models_dl", True),
-    "lstm_exog":      ("models_dl", True),       # + ONI channel
-    "bilstm":         ("models_dl", True),
-    "nbeats":         ("models_sota", True),
-    "patchtst":       ("models_sota", True),
+    "naive":          {"family": "simple", "kind": "cpu"},
+    "snaive":         {"family": "simple", "kind": "cpu"},
+    "snaive_drift":   {"family": "simple", "kind": "cpu"},
+    "swa3":           {"family": "simple", "kind": "cpu"},
+    "drift":          {"family": "simple", "kind": "cpu"},
+    "ets":            {"family": "statistical", "kind": "cpu"},
+    "theta":          {"family": "statistical", "kind": "cpu"},
+    "comb":           {"family": "statistical", "kind": "cpu"},
+    "arima_agg":      {"family": "statistical", "kind": "cpu"},
+    "arima":          {"family": "statistical", "kind": "cpu"},
+    "sarima":         {"family": "statistical", "kind": "cpu"},
+    "sarimax":        {"family": "statistical", "kind": "cpu", "tier": ["x1", "x2", "x3"]},
+    "prophet":        {"family": "decomposition", "kind": "cpu", "tuned": True},
+    "lgbm":           {"family": "boosting", "kind": "cpu", "tuned": True},
+    "lgbm_oni":       {"family": "boosting", "kind": "cpu", "tuned": True, "tier": ["x1", "x2", "x3"]},
+    "gru":            {"family": "recurrent", "kind": "gpu", "tuned": True},
+    "lstm":           {"family": "recurrent", "kind": "gpu", "tuned": True},
+    "lstm_oni":       {"family": "recurrent", "kind": "gpu", "tuned": True, "tier": ["x1", "x2", "x3"]},
+    "bilstm":         {"family": "recurrent", "kind": "gpu", "tuned": True},
+    "nbeats":         {"family": "deep", "kind": "gpu", "tuned": True},
+    "nhits":          {"family": "deep", "kind": "gpu", "tuned": True},
+    "patchtst":       {"family": "deep", "kind": "gpu", "tuned": True},
+    "dlinear":        {"family": "deep", "kind": "gpu", "tuned": True},
+    "tide":           {"family": "deep", "kind": "gpu", "tuned": True},
+    "chronos":        {"family": "foundation", "kind": "fm"},
+    "timesfm":        {"family": "foundation", "kind": "fm"},
+    "moirai":         {"family": "foundation", "kind": "fm"},
 }
 
-# How the exogenous ONI series is handled over a 12-month horizon.
-# "persist" freezes the last observed ONI value (deployable scenario);
-# "observed" feeds the realised ONI values (a hindcast upper bound).
-EXOG_MODES = ["persist", "observed"]
+# Models whose output does not depend on the random seed.
+DETERMINISTIC = {"naive", "snaive", "snaive_drift", "swa3", "drift", "ets", "theta",
+                 "comb", "arima_agg", "arima", "sarima", "sarimax", "prophet",
+                 "chronos", "timesfm", "moirai"}
 
-# Regime-adaptive switching (RAS) ensemble, computed post-hoc from the stored
-# predictions. Under normal conditions the default forecaster is used; when its
-# recent accuracy degrades enough the fallback takes over the rest of the year.
-SWITCH_DEFAULT = "lstm"
-SWITCH_FALLBACK = "sarima_dis"
-SWITCH_WINDOW = 2             # consecutive months of degradation before switching
-SWITCH_FACTOR = 1.5           # trailing-MAPE degradation ratio that triggers a switch
 
-for _p in (DATA_PROCESSED, PREDS, TABLES, FIGURES, LOGS):
-    _p.mkdir(parents=True, exist_ok=True)
+def ensure_dirs() -> None:
+    for p in (PANELS, JOBS, TUNING, PREDS, TABLES, FIGURES):
+        p.mkdir(parents=True, exist_ok=True)
