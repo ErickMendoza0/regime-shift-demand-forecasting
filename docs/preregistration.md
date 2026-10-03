@@ -104,3 +104,17 @@ are pooled per target month over all forecasts of that month.
   episodes, between the depth of a shift and the error of learned models
   relative to classical ones (`src/pooled.py`, `depth.csv`). It is reported as
   exploratory.
+- 3 October 2026, evening. Erick Mendoza obtained the ARCONEL extracts for
+  January 2025 to August 2026. Merging them showed that the extracts contain
+  distributor-months with no billing record at all (zero customers and zero
+  energy): twelve inside the 2014-2024 file used until now, for example
+  CNEL-Guayas Los Ríos in February 2024 and CNEL-Manabí in July 2024, and one in
+  January 2025. Earlier versions of this work read them as drops in
+  consumption. From now on a distributor billing fewer than half of its customers
+  of the previous six months is treated as not having reported; the series it
+  bills into are missing that month, and a target month whose missing part
+  exceeds 0.5 % of the total is not scored. August 2026 is unfinished in the
+  extract and is dropped. The Ecuadorian campaign was rerun on the corrected and
+  extended data (origins up to July 2026, re-tuning every January up to 2026),
+  with the protocol otherwise unchanged; the first run is archived. Brazil and
+  Europe are not affected.

@@ -24,8 +24,21 @@ with `,` as decimal mark, and has about 637,000 rows.
 | PIB %, Inflacion % | 4,22 |
 
 `src/data.py` sums it to 116 series (province by consumer group) and refuses to
-run on a file with fewer than 100,000 rows. During 2024 these values are served
-consumption under scheduled load shedding, not unconstrained demand.
+run on a file with fewer than 100,000 rows. During late 2024 these values are
+served consumption under scheduled load shedding, not unconstrained demand.
+
+Later months come as yearly Excel extracts from the same module, saved as
+`data/raw/ARCONEL_Ecuador_<year>.xlsx` (same columns plus some billing fields,
+header on the second row). The 2025 and 2026 files were exported on
+3 October 2026; the 2026 one ends in an unfinished August, which the loader
+drops.
+
+The extracts have distributor-months with no billing record (zero customers and
+zero energy), for example CNEL-Guayas Los Ríos in February 2024. `src/data.py`
+treats a distributor billing fewer than half of its customers of the previous
+six months as not having reported, blanks the series it bills into for that
+month, and leaves the month out of scoring when the missing part exceeds 0.5 %
+of the national total. The list is written to `work/panels/ecuador_reporting_gaps.csv`.
 
 ## Downloaded by `python -m src.fetch`
 
