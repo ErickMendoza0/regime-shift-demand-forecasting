@@ -1,25 +1,21 @@
-# Environment `energyq1`: TensorFlow/Keras + statistics + ML.
-# The torch-based SOTA models live in a separate environment
-# (see requirements_sota.txt) to keep the two CUDA stacks apart.
-
-# Core
-numpy<2.0
-pandas>=2.0
+# Environment regime2: data, statistical, machine-learning and neural models,
+# tuning and analysis. Exact versions used for the paper: envs/regime2.lock.txt
+numpy
+pandas>=2.2
 pyarrow
 scipy
 scikit-learn
-matplotlib
-
-# Statistical models
 statsmodels>=0.14
-pmdarima>=2.0
-
-# Machine learning
+matplotlib
+requests
+torch>=2.5
+statsforecast>=2.0
+neuralforecast>=3.0
 lightgbm>=4.0
 prophet>=1.1.5
-
-# Deep learning (Keras); tensorflow brings its own CUDA pip dependencies
-tensorflow[and-cuda]==2.16.*
-
-# Post-hoc statistics
+optuna>=4.0
+arch>=7.0
+ruptures
 scikit-posthocs
+baycomp
+pytest

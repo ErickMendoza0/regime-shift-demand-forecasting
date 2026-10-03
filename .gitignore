@@ -6,7 +6,7 @@ venv/
 work/
 logs/
 *.parquet
-data/raw/*.csv
+data/raw/*
 !data/raw/.gitkeep
 !logs/.gitkeep
 .DS_Store

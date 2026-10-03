@@ -1,57 +1,31 @@
 #!/bin/bash
-# Create the two conda environments used by the pipeline.
+# Create the three conda environments. Run on a machine with internet access
+# (on our cluster, the login node). Re-running skips environments that exist.
 #
-#   energyq1        TensorFlow/Keras + statistics + ML (everything except SOTA)
-#   energyq1_torch  PyTorch + neuralforecast (N-BEATS / PatchTST)
-#
-# The two environments are kept separate because TensorFlow and PyTorch ship
-# their own copies of the CUDA userspace libraries, and keeping them apart
-# avoids version conflicts between the two stacks.
-#
-#   bash setup_env.sh
+#   bash setup_env.sh          # loose requirements
+#   LOCK=1 bash setup_env.sh   # exact versions from envs/*.lock.txt
 set -e
 source ~/miniconda3/etc/profile.d/conda.sh
-
-# PyTorch wheel index for CUDA 12.x drivers.
-TORCH_INDEX="https://download.pytorch.org/whl/cu121"
-
-# Re-running only creates the environments that are missing.
 env_exists() { conda env list | awk '{print $1}' | grep -qx "$1"; }
 
-echo "[1/2] energyq1 (TensorFlow/Keras + stats + ML), Python 3.10"
-if env_exists energyq1; then
-  echo "energyq1 already exists; skipping (remove with 'conda env remove -n energyq1' to rebuild)"
-else
-  conda create -y -n energyq1 python=3.10
-  conda activate energyq1
+make_env() {
+  local name=$1 reqs=$2
+  if env_exists "$name"; then
+    echo "$name already exists, skipping"
+    return
+  fi
+  conda create -y -n "$name" python=3.11
+  conda activate "$name"
   python -m pip install --upgrade pip
-  pip install -r requirements.txt
-  python - <<'EOF'
-import tensorflow as tf, pmdarima, lightgbm, prophet
-print("tf", tf.__version__, "| pmdarima", pmdarima.__version__,
-      "| lgbm", lightgbm.__version__)
-EOF
+  if [ -n "$LOCK" ]; then
+    pip install -r "envs/$name.lock.txt"
+  else
+    pip install -r "$reqs"
+  fi
   conda deactivate
-fi
+}
 
-echo "[2/2] energyq1_torch (PyTorch + neuralforecast), Python 3.10"
-if env_exists energyq1_torch; then
-  echo "energyq1_torch already exists; skipping"
-else
-  conda create -y -n energyq1_torch python=3.10
-  conda activate energyq1_torch
-  python -m pip install --upgrade pip
-  # Install torch from the CUDA 12.x wheel index first, then neuralforecast on top.
-  pip install torch --index-url "${TORCH_INDEX}"
-  pip install -r requirements_sota.txt
-  python - <<'EOF'
-import torch, neuralforecast
-print("torch", torch.__version__, "| neuralforecast", neuralforecast.__version__,
-      "| cuda:", torch.cuda.is_available())
-EOF
-  conda deactivate
-fi
-
-echo "Done."
-echo "Next: upload the raw CSV to data/raw/ and run (env energyq1): python -m src.fetch_oni"
-echo "CPU and Keras GPU models use 'energyq1'; the SOTA models use 'energyq1_torch'."
+make_env regime2 requirements.txt
+make_env regime2_fm requirements-fm.txt
+make_env regime2_moirai requirements-moirai.txt
+echo "Next: python -m src.fetch --weights (in regime2_fm), then bash slurm/submit.sh"

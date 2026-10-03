@@ -1,35 +1,40 @@
 # Data
 
-## 1. `data/raw/Datos_Energeticos_Ecuador_2014_2024.csv` (required, not versioned)
+Nothing in `data/raw/` is versioned.
 
-Consolidated billing dataset built from SISDAT-ARCONEL (the *Regulated Customer
-Billing* module, <https://reportes.arconel.gob.ec/>) together with
-macroeconomic series from the Ministry of Energy and Mines. The file is
-`latin-1` encoded, `;`-separated, with `,` as the decimal mark.
+## Ecuador (manual download)
 
-The raw headers are Spanish and are mapped to English internal names during
-ingestion (`src/prepare_data.py`):
+`data/raw/Datos_Energeticos_Ecuador_2014_2024.csv`: monthly billed energy by
+company, consumer group, province, canton and parish, January 2014 to December
+2024, from the *Facturación Clientes Regulados* module of SISDAT-ARCONEL
+(<https://reportes.arconel.gob.ec/>). The portal is interactive, so the yearly
+extracts were exported by hand and merged. The file is `latin-1`, `;`-separated,
+with `,` as decimal mark, and has about 637,000 rows.
 
-| Raw column | Type | Example | Internal name |
-|---|---|---|---|
-| Anio | int | 2014 | year |
-| Mes | str (Ene..Dic) | Feb | month |
-| Empresa | str | CNEL-Guayas | company |
-| Grupo Consumo | str | Residencial / Comercial / Industrial / Alumbrado Público / Otros | consumer_group |
-| Provincia / Canton / Parroquia | str | COTOPAXI / LA MANÁ / EL CARMEN | province / canton / parish |
-| Numero Clientes | int | 1 | n_clients |
-| Energia Facturada (kWh) | num | 3974 | energy_kwh |
-| Facturacion Servicio Electrico (USD) | num | 321,64 | billing_usd |
-| PIB % / Inflacion % | num | 4,22 | gdp_pct / inflation_pct |
+| Column | Example |
+|---|---|
+| Anio | 2014 |
+| Mes | Feb (Spanish abbreviations) |
+| Empresa | CNEL-Guayas |
+| Grupo Consumo | Residencial, Comercial, Industrial, Alumbrado Público, Otros |
+| Provincia, Canton, Parroquia | COTOPAXI, LA MANÁ, EL CARMEN |
+| Numero Clientes | 1 |
+| Energia Facturada (kWh) | 3974 |
+| Facturacion Servicio Electrico (USD) | 321,64 |
+| PIB %, Inflacion % | 4,22 |
 
-Place the file at `data/raw/Datos_Energeticos_Ecuador_2014_2024.csv` before
-running the preprocessing step.
+`src/data.py` sums it to 116 series (province by consumer group) and refuses to
+run on a file with fewer than 100,000 rows. During 2024 these values are served
+consumption under scheduled load shedding, not unconstrained demand.
 
-## 2. `data/raw/oni.csv` (fetched automatically)
+## Downloaded by `python -m src.fetch`
 
-The NOAA/CPC Oceanic Niño Index (ONI), the standard ENSO indicator. Download it
-once from a machine with internet access:
+| File | Source |
+|---|---|
+| `oni.ascii.txt` | NOAA CPC Oceanic Niño Index, <https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt> |
+| `brazil_ipeadata.csv` | Monthly electricity consumption by region (Eletrobras/EPE) through the Ipeadata API, series `ELETRO12_CEE{NO,NE,SE,SU,CO}12`, GWh |
+| `europe_nrg_cb_em.csv` | Eurostat `nrg_cb_em`, electricity available to the internal market (`AIM`, `E7000`), GWh, EU-27 |
 
-```bash
-conda activate energyq1 && python -m src.fetch_oni
-```
+ONI values are revised from time to time when NOAA updates its sea-surface
+temperature reconstruction; the file used for the paper was downloaded on
+3 October 2026.
