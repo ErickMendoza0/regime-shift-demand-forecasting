@@ -15,3 +15,4 @@ done
 python -m src.pooled
 python -m src.figures
 python -m src.summary
+python -m src.tables
