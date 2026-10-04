@@ -21,15 +21,18 @@ LEARNED = {"boosting", "recurrent", "deep"}
 
 
 def fmt(v, digits=2):
+    """Text ready for LaTeX: underscores escaped, tiny numbers as powers of ten."""
     if isinstance(v, str):
-        return v
+        return v.replace("_", r"\_")
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "n/a"
     if isinstance(v, (int, np.integer)):
         return f"{v:d}"
     if abs(v) < 1e-3 and v != 0:
-        return f"{v:.1e}"
-    return f"{v:.{digits}f}"
+        mantissa, exponent = f"{v:.1e}".split("e")
+        return rf"${mantissa}\times10^{{{int(exponent)}}}$"
+    text = f"{v:.{digits}f}"
+    return "$-$" + text[1:] if text.startswith("-") else text
 
 
 def collect() -> dict:
@@ -116,6 +119,19 @@ def collect() -> dict:
                 better_shift = dd.loc[rule, "mase_shift"] < dd.loc[default, "mase_shift"]
                 not_worse = dd.loc[rule, "mase_stable"] <= dd.loc[default, "mase_stable"]
                 put(f"{d}.h5.{rule}", "yes" if better_shift and not_worse else "no")
+
+    from src import jobs
+    for d in DATASETS:
+        put(f"{d}.origins", len(jobs.origins(d)))
+        put(f"{d}.forecasts", len(list((C.PREDS / d).glob("*/*_s*.parquet"))))
+    gaps = pd.read_csv(C.PANELS / "ecuador_reporting_gaps.csv")
+    put("ecuador.gaps", int((~gaps["incomplete_month"]).sum()))
+    scored = set(pd.read_parquet(C.TABLES / "ecuador" / "errors.parquet", columns=["date"])["date"])
+    window = pd.date_range(min(scored), max(scored), freq="MS")
+    put("ecuador.months.unscored", len(set(window) - scored))
+    ep = pd.read_csv(C.TABLES / "pooled" / "episodes.csv", index_col=0)
+    for d in DATASETS:
+        put(f"pooled.episodes.{d}", int((ep["dataset"] == d).sum()))
 
     cps = pd.read_csv(C.TABLES / "changepoints_ecuador.csv")
     seg = cps[cps["method"] == "segmentation"].reset_index(drop=True)
