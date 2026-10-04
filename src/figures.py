@@ -90,7 +90,7 @@ def fig_series():
                              gridspec_kw={"height_ratios": [2.2, 1.6, 0.9]})
     for ax in axes:
         _shade(ax, reg, "EC")
-    axes[0].plot(y.index, y.values, color=S.INK, lw=1.2)
+    axes[0].plot(y.index, y.values, color=S.INK, lw=1.2, marker="o", ms=1.6)
     axes[0].set_ylabel("Billed consumption\n(GWh per month)")
 
     r = reg[reg["target"] == "EC"]
