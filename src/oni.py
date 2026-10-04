@@ -47,7 +47,10 @@ def horizon(oni: pd.Series, origin, dates, tier: str) -> np.ndarray:
         raise ValueError(tier)
     need = pd.DatetimeIndex(dates) - pd.DateOffset(months=C.ONI_LAG)
     if tier == "x3":
-        return oni.reindex(need).to_numpy(float)
+        # Months past the end of the ONI record have no realised value yet; they
+        # also lie past the last month of consumption data and are never scored,
+        # so the last realised value is carried forward to keep the run finite.
+        return oni.reindex(need).ffill().fillna(oni.dropna().iloc[-1]).to_numpy(float)
     known = known_at(oni, origin)
     out = known.reindex(need)
     missing = out.isna()
