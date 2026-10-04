@@ -18,6 +18,7 @@ from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 import config as C
 from src import data, oni
 from src import plot_style as S
+from src.tables import NAMES
 
 DATASETS = ("ecuador", "brazil", "europe")
 LABEL = {"ecuador": "Ecuador", "brazil": "Brazil", "europe": "EU countries"}
@@ -32,6 +33,10 @@ CORE = ["naive", "snaive", "swa3", "ets", "theta", "comb", "sarima", "prophet", 
 
 # One model per family, so every line keeps its own colour and marker.
 ONE_PER_FAMILY = ["swa3", "sarima", "lgbm", "lstm", "patchtst", "moirai", "median_all"]
+
+
+def _name(m):
+    return NAMES.get(m, m)
 
 
 def _log_axis(ax, values):
@@ -183,7 +188,7 @@ def fig_error_heatmap(dataset="ecuador"):
     fig, ax = plt.subplots(figsize=(S.DOUBLE, 0.14 * len(L) + 1.0))
     im = ax.imshow(L.to_numpy(), aspect="auto", cmap=cmap, vmin=0,
                    vmax=np.nanpercentile(L.to_numpy(), 98), interpolation="nearest")
-    ax.set_yticks(range(len(L)), L.index, fontsize=6)
+    ax.set_yticks(range(len(L)), [_name(m) for m in L.index], fontsize=6)
     ticks = [i for i, d in enumerate(L.columns) if d.month == 1]
     ax.set_xticks(ticks, [L.columns[i].year for i in ticks])
     ax.grid(False)
@@ -200,7 +205,7 @@ def fig_degradation():
     if not tabs:
         return
     fig, axes = plt.subplots(1, len(tabs), figsize=(S.DOUBLE, 5.4), sharey=False,
-                             gridspec_kw={"wspace": 0.55})
+                             gridspec_kw={"wspace": 1.05})
     axes = np.atleast_1d(axes)
     for ax, (d, t) in zip(axes, tabs.items()):
         t = t.sort_values("ratio", ascending=False).reset_index(drop=True)
@@ -210,7 +215,7 @@ def fig_degradation():
             ax.plot(row["mase_stable"], i, marker=S.MARKER[fam], mfc="white", mec=S.COLOR[fam],
                     ms=4, ls="")
             ax.plot(row["mase_shift"], i, marker=S.MARKER[fam], color=S.COLOR[fam], ms=4, ls="")
-        ax.set_yticks(range(len(t)), t["model"], fontsize=6)
+        ax.set_yticks(range(len(t)), [_name(m) for m in t["model"]], fontsize=6)
         _log_axis(ax, np.r_[t["mase_stable"], t["mase_shift"]])
         ax.set_xlabel("MASE (open: stable,\nfilled: shift)")
         ax.set_title(LABEL[d])
@@ -286,7 +291,7 @@ def fig_mcs():
             ax.plot(j, i, "o", ms=3 + 6 * min(p, 1), color=c if p >= 0.10 else "white",
                     mec=c, mew=0.8)
     ax.set_xticks(range(len(P.columns)), P.columns, fontsize=6.5)
-    ax.set_yticks(range(len(P.index)), P.index, fontsize=6)
+    ax.set_yticks(range(len(P.index)), [_name(m) for m in P.index], fontsize=6)
     ax.invert_yaxis()
     ax.set_xlim(-0.6, len(P.columns) - 0.4)
     ax.grid(False)
@@ -317,8 +322,8 @@ def fig_dm_matrix(dataset="ecuador", regime="all"):
     im = ax.imshow(M, cmap=cmap, vmin=-lim, vmax=lim)
     for a, b in zip(*np.where(sig)):
         ax.add_patch(plt.Rectangle((b - 0.5, a - 0.5), 1, 1, fill=False, ec=S.INK, lw=0.9))
-    ax.set_xticks(range(k), models, rotation=90, fontsize=6)
-    ax.set_yticks(range(k), models, fontsize=6)
+    ax.set_xticks(range(k), [_name(m) for m in models], rotation=90, fontsize=6)
+    ax.set_yticks(range(k), [_name(m) for m in models], fontsize=6)
     ax.grid(False)
     cb = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cb.set_label("DM statistic (negative: row model has lower loss)")
@@ -348,15 +353,18 @@ def fig_fluctuation(dataset="ecuador"):
         for s in (-cv, cv):
             ax.axhline(s, color=S.AXIS, lw=0.6, ls="--")
         ax.axhline(0, color=S.AXIS, lw=0.4)
-        ax.set_title(f"{m} vs seasonal naive", fontsize=7)
+        ax.set_title(f"{_name(m)} against seasonal naive", fontsize=7)
+        ax.xaxis.set_major_locator(mdates.YearLocator(2))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     for ax in axes.flat[len(picks):]:
         ax.set_visible(False)
+    fig.subplots_adjust(hspace=0.35)
     fig.supylabel("Rolling DM statistic\n(above 0: seasonal naive better)", fontsize=8)
     S.save(fig, f"fig_fluctuation_{dataset}")
 
 
 def fig_trajectories(dataset="ecuador"):
-    """F9. Forecasts from the last origin before each shift, against the data."""
+    """F9. Forecasts issued two months before each shift, against the data."""
     err = _table(dataset, "errors.parquet")
     reg_path = C.TABLES / f"regimes_{dataset}.csv"
     if err is None or not reg_path.exists():
@@ -385,7 +393,7 @@ def fig_trajectories(dataset="ecuador"):
             g = sub[sub["model"] == m].sort_values("date")
             fam = S.family(m)
             ax.plot(g["date"], g["y_hat"], color=S.COLOR[fam], marker=S.MARKER[fam], ms=3, lw=1,
-                    label=m)
+                    label=_name(m))
         ax.axvline(origin, color=S.AXIS, lw=0.6, ls="--")
         ax.set_title(f"Origin {origin:%Y-%m}", fontsize=7)
         ax.set_xlim(origin - pd.DateOffset(months=12),
@@ -394,7 +402,7 @@ def fig_trajectories(dataset="ecuador"):
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     axes[0].set_ylabel("GWh per month")
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, ncol=len(labels), loc="lower center", bbox_to_anchor=(0.5, -0.1))
+    fig.legend(handles, labels, ncol=4, loc="lower center", bbox_to_anchor=(0.5, -0.16))
     S.save(fig, f"fig_trajectories_{dataset}")
 
 
@@ -423,6 +431,7 @@ def fig_episodes():
             groups.append((f"EU, {y} ({n} {noun})", eu.loc[year == y, picks]))
     fig, ax = plt.subplots(figsize=(S.DOUBLE, 0.32 * len(groups) + 1.0))
     off = np.linspace(-0.3, 0.3, len(picks))
+    drawn = []
     for i, (name, g) in enumerate(groups):
         for k, m in enumerate(picks):
             v = g[m].dropna()
@@ -431,10 +440,13 @@ def fig_episodes():
             fam = S.family(m)
             med = v.median()
             ax.plot(med, i + off[k], marker=S.MARKER[fam], color=S.COLOR[fam], ms=4, ls="")
+            drawn.append(med)
             if len(v) > 1:
-                ax.plot([v.quantile(0.25), v.quantile(0.75)], [i + off[k]] * 2, color=S.COLOR[fam], lw=1)
+                q = [v.quantile(0.25), v.quantile(0.75)]
+                ax.plot(q, [i + off[k]] * 2, color=S.COLOR[fam], lw=1)
+                drawn += q
     ax.axvline(1, color=S.AXIS, lw=0.8)
-    _log_axis(ax, np.concatenate([g[1].to_numpy().ravel() for g in groups]))
+    _log_axis(ax, np.array(drawn))
     ax.set_yticks(range(len(groups)), [g[0] for g in groups], fontsize=7)
     ax.invert_yaxis()
     ax.set_xlabel("MASE relative to seasonal naive (below 1: better)")
@@ -442,7 +454,8 @@ def fig_episodes():
     ax.grid(axis="y", visible=False)
     handles = [plt.Line2D([], [], color=S.COLOR[S.family(m)], marker=S.MARKER[S.family(m)], ls="")
                for m in picks]
-    fig.legend(handles, picks, ncol=len(picks), loc="lower center", bbox_to_anchor=(0.5, -0.06))
+    fig.legend(handles, [_name(m) for m in picks], ncol=4, loc="lower center",
+               bbox_to_anchor=(0.5, -0.1))
     S.save(fig, "fig_episodes")
 
 
@@ -496,7 +509,7 @@ def fig_oni_tiers(dataset="ecuador"):
                 if name in a:
                     ax.plot(a[name], i + (k - 1.5) * 0.16, marker=marker, ls="", ms=4.5,
                             color=c, mfc=c if filled else "white")
-        ax.set_yticks(range(len(groups)), [g[0] for g in groups])
+        ax.set_yticks(range(len(groups)), [_name(g[0]) for g in groups])
         ax.set_title(f"{regime} months", fontsize=7)
         ax.set_xlabel("MASE")
         ax.grid(axis="x")
@@ -537,7 +550,7 @@ def fig_cd():
         ax.plot([r, r], [0, y], color=S.AXIS, lw=0.5)
         ax.plot([r, xt], [y, y], color=S.AXIS, lw=0.5)
         ax.plot(r, 0, marker=S.MARKER[fam], color=S.COLOR[fam], ms=4)
-        ax.text(xt + (-0.05 if left else 0.05), y, m, ha="right" if left else "left",
+        ax.text(xt + (-0.05 if left else 0.05), y, _name(m), ha="right" if left else "left",
                 va="center", fontsize=6.5)
     # Bars join runs of models whose Nemenyi test does not separate them; runs
     # contained in a longer one are dropped, and each bar takes the first row

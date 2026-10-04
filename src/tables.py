@@ -22,7 +22,7 @@ FAMILY_ORDER = {f: i for i, f in enumerate(S.FAMILIES)}
 NAMES = {
     "naive": "Naive", "snaive": "Seasonal naive", "snaive_drift": "Seasonal naive + drift",
     "swa3": "Seasonal mean (3 y)", "drift": "Drift", "ets": "ETS", "theta": "Theta",
-    "comb": "Comb (M4)", "arima_agg": "Aggregate ARIMA(1,1,1)", "arima": "ARIMA",
+    "comb": "M4 Comb", "arima_agg": "Aggregate ARIMA(1,1,1)", "arima": "ARIMA",
     "sarima": "SARIMA", "sarimax_x1": "SARIMAX (ONI x1)", "sarimax_x2": "SARIMAX (ONI x2)",
     "sarimax_x3": "SARIMAX (ONI x3)", "prophet": "Prophet", "lgbm": "LightGBM",
     "lgbm_oni_x1": "LightGBM (ONI x1)", "lgbm_oni_x2": "LightGBM (ONI x2)",
@@ -31,7 +31,7 @@ NAMES = {
     "bilstm": "BiLSTM", "nbeats": "N-BEATS", "nhits": "N-HiTS", "patchtst": "PatchTST",
     "dlinear": "DLinear", "tide": "TiDE", "chronos": "Chronos-2", "timesfm": "TimesFM 3.0",
     "moirai": "Moirai 2.0", "ras": "RAS switch", "bocpd": "BOCPD switch",
-    "fixed_share": "Fixed-share", "median_all": "Median of all", "comb3": "Mean of 3",
+    "fixed_share": "Fixed share", "median_all": "Median of all", "comb3": "Mean of three",
 }
 
 
