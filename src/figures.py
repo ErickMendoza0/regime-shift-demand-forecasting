@@ -82,7 +82,8 @@ def fig_series():
     cps = cps[cps["method"] == "segmentation"]
     panel, static = data.load("ecuador")
     truth = data.actuals(panel, static)
-    y = truth[truth["target"] == "EC"].set_index("date")["y"]
+    # Unscored months (reporting gaps) stay blank instead of being bridged.
+    y = truth[truth["target"] == "EC"].set_index("date")["y"].asfreq("MS")
     o = oni.load().loc[y.index.min():y.index.max()]
 
     fig, axes = plt.subplots(3, 1, figsize=(S.DOUBLE, 4.6), sharex=True,
@@ -102,12 +103,16 @@ def fig_series():
     low, top = axes[1].get_ylim()
     axes[1].set_ylim(low, top + 0.25 * (top - low))
     top = top + 0.15 * (top - low)
+    shown = 0
     for _, c in cps.iterrows():
         for ax in axes[:2]:
             ax.axvline(c["break"], color=S.AXIS, lw=0.6, ls="--", zorder=1)
         if c["break"] in set(edges):
-            axes[1].plot([c["ci_low"], c["ci_high"]], [top] * 2, color=S.INK_2,
+            # Alternate two heights so neighbouring intervals do not overlap.
+            level = top - (shown % 2) * 0.08 * (top - low)
+            axes[1].plot([c["ci_low"], c["ci_high"]], [level] * 2, color=S.INK_2,
                          lw=1.2, marker="|", ms=5)
+            shown += 1
 
     colours = np.where(o.values >= 0, S.DIVERGING[2], S.DIVERGING[0])
     axes[2].bar(o.index, o.values, width=25, color=colours, lw=0)
