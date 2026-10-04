@@ -14,10 +14,13 @@ import pandas as pd
 
 import config as C
 from src import plot_style as S
+from src.tables import NAMES
 
 DATASETS = ("ecuador", "brazil", "europe")
 CLASSICAL = {"simple", "statistical", "decomposition"}
 LEARNED = {"boosting", "recurrent", "deep"}
+# H2 in the analysis plan counts the foundation models among the learned ones.
+LEARNED_H2 = LEARNED | {"foundation"}
 
 
 def fmt(v, digits=2):
@@ -75,10 +78,32 @@ def collect() -> dict:
         gw = pd.read_csv(t / "gw.csv")
         put(f"{d}.gw.significant", int((gw["p_holm"] < 0.05).sum()))
         put(f"{d}.gw.tested", len(gw))
+        put(f"{d}.gw.models", ", ".join(NAMES.get(m, m) for m in
+                                          gw.loc[gw["p_holm"] < 0.05, "model"]))
+        fl = t / "fluctuation.csv"
+        if fl.exists():
+            fl = pd.read_csv(fl)
+            crossed = (fl["statistic"].abs() > fl["critical"]).groupby(fl["model"]).any()
+            put(f"{d}.fluct.models", int(crossed.size))
+            put(f"{d}.fluct.crossed", int(crossed.sum()))
+            put(f"{d}.fluct.critical", float(fl["critical"].iloc[0]))
 
         dm = pd.read_csv(t / "dm_all.csv")
         put(f"{d}.dm.pairs", len(dm))
         put(f"{d}.dm.holm", int((dm["p_holm"] < 0.05).sum()))
+        put(f"{d}.dm.by", int((dm["p_by"] < 0.05).sum()))
+        sig = dm[dm["p_holm"] < 0.05]
+        winners = [a if row < 0 else b for a, b, row in
+                   zip(sig["model_1"], sig["model_2"], sig["dm"])]
+        losers = [b if row < 0 else a for a, b, row in
+                  zip(sig["model_1"], sig["model_2"], sig["dm"])]
+        put(f"{d}.dm.holm.losers", ", ".join(NAMES.get(m, m) for m in sorted(set(losers))))
+        put(f"{d}.dm.holm.winners", ", ".join(NAMES.get(m, m) for m in sorted(set(winners))))
+        stable = t / "dm_stable.csv"
+        if stable.exists():
+            ds = pd.read_csv(stable)
+            put(f"{d}.dm.stable.pairs", len(ds))
+            put(f"{d}.dm.stable.holm", int((ds["p_holm"] < 0.05).sum()))
 
         ch = pd.read_csv(t / "combine_choices.csv")
         for i, r in ch.iterrows():
@@ -86,14 +111,35 @@ def collect() -> dict:
                         "fs_eta", "fs_share"):
                 put(f"{d}.block{i + 1}.{col}", r[col])
 
-        err = pd.read_parquet(t / "errors.parquet", columns=["target", "date", "regime"])
+        err = pd.read_parquet(t / "errors.parquet",
+                              columns=["model", "target", "date", "regime", "sae"])
         months = err.drop_duplicates(["target", "date"])["regime"].value_counts()
         for regime in ("stable", "shift", "rebound"):
             put(f"{d}.months.{regime}", int(months.get(regime, 0)))
+        # Rebound MASE on the same footing as degradation.csv: mean over target
+        # months of the mean scaled error of each month.
+        reb = err[(err["regime"] == "rebound") & ~err["model"].str.endswith("_x3")]
+        if len(reb):
+            per_month = reb.groupby(["model", "target", "date"])["sae"].mean()
+            for m, v in per_month.groupby("model").mean().items():
+                put(f"{d}.rebound.{m}.mase", v)
+            ranks = per_month.groupby("model").mean().rank()
+            for m, r in ranks.items():
+                put(f"{d}.rebound.{m}.rank", int(r))
+
+        names = lambda ms: ", ".join(NAMES.get(m, m) for m in ms)
+        for regime in ("all", "stable", "shift", "rebound"):
+            f = t / f"mcs_{regime}.csv"
+            if f.exists():
+                mcs = pd.read_csv(f, index_col=0)
+                inside = list(mcs.index[mcs["in_mcs"]])
+                put(f"{d}.mcs.{regime}.size", len(inside))
+                put(f"{d}.mcs.{regime}.members", names(inside))
+                put(f"{d}.mcs.{regime}.tested", len(mcs))
 
         # H2: are shift/stable ratios larger for learned than for classical models?
         from scipy import stats
-        lr = deg.loc[fam.isin(LEARNED), "ratio"]
+        lr = deg.loc[fam.isin(LEARNED_H2), "ratio"]
         cl = deg.loc[fam.isin(CLASSICAL), "ratio"]
         put(f"{d}.h2.p", stats.mannwhitneyu(lr, cl, alternative="greater").pvalue, 3)
 
