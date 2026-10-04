@@ -65,7 +65,8 @@ def pelt(x: np.ndarray):
 
 def bootstrap_intervals(x: np.ndarray, breaks, rng) -> list[tuple[int, int]]:
     """Percentile intervals for each break from a moving-block bootstrap of the
-    residuals around the fitted segment means, re-segmented with the same k."""
+    residuals around the fitted segment means, re-segmented with the same k.
+    Each detected break is matched to the nearest break of every replicate."""
     import ruptures as rpt
     k = len(breaks) - 1
     if k == 0:
@@ -80,8 +81,11 @@ def bootstrap_intervals(x: np.ndarray, breaks, rng) -> list[tuple[int, int]]:
         bk = rpt.Dynp(model="l2", min_size=MIN_SEGMENT, jump=1).fit(fitted + r).predict(n_bkps=k)
         draws.append(bk[:-1])
     draws = np.array(draws)
-    return [(int(np.percentile(draws[:, j], 2.5)), int(np.percentile(draws[:, j], 97.5)))
-            for j in range(k)]
+    out = []
+    for b in breaks[:-1]:
+        nearest = draws[np.arange(len(draws)), np.abs(draws - b).argmin(axis=1)]
+        out.append((int(np.percentile(nearest, 2.5)), int(np.percentile(nearest, 97.5))))
+    return out
 
 
 def bocpd(x: np.ndarray, hazard: float = HAZARD) -> np.ndarray:
