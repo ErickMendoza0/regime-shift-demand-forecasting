@@ -127,13 +127,16 @@ def fig_series():
 
 def fig_protocol():
     """F2. Monthly origins, the expanding window, the horizon and tuning."""
-    start, data_end = pd.Timestamp("2014-01-01"), pd.Timestamp("2024-12-01")
+    panel, static = data.load("ecuador")
+    data_end = data.actuals(panel, static)["date"].max()
+    start = pd.Timestamp("2014-01-01")
+    last = data_end.strftime("%Y-%m")
     rows = [("origin 2019-01", "2019-01-01", "forecast"),
             ("origin 2019-02", "2019-02-01", "forecast"),
-            ("origin 2021-01", "2021-01-01", "forecast"),
-            ("origin 2024-10", "2024-10-01", "forecast"),
-            ("validation origin 2020-01", "2020-01-01", "validation"),
-            ("validation origin 2020-07", "2020-07-01", "validation")]
+            ("origin 2022-01", "2022-01-01", "forecast"),
+            (f"origin {last}", f"{last}-01", "forecast"),
+            ("validation origin 2021-01", "2021-01-01", "validation"),
+            ("validation origin 2021-07", "2021-07-01", "validation")]
     fig, ax = plt.subplots(figsize=(S.DOUBLE, 2.1))
     for i, (label, o, kind) in enumerate(rows):
         o = pd.Timestamp(o)
@@ -141,7 +144,7 @@ def fig_protocol():
         end = o + pd.DateOffset(months=12)
         colour = S.COLOR["simple"] if kind == "forecast" else S.COLOR["statistical"]
         if kind == "validation":
-            end = min(end, pd.Timestamp("2021-01-01"))    # nothing from the tuning year on
+            end = min(end, pd.Timestamp("2022-01-01"))    # nothing from the tuning year on
         ax.barh(yv, (o - start).days, left=start, height=0.55, color=S.GRID, lw=0)
         scored = min(end, data_end + pd.DateOffset(months=1))
         ax.barh(yv, (scored - o).days, left=o, height=0.55, color=colour, lw=0)
@@ -149,13 +152,13 @@ def fig_protocol():
             ax.barh(yv, (end - scored).days, left=scored, height=0.55, color="white",
                     edgecolor=colour, hatch="////", lw=0.6)
         ax.text(start - pd.Timedelta(days=40), yv, label, ha="right", va="center", fontsize=7)
-    ax.axvline(pd.Timestamp("2021-01-01"), ymax=0.3, color=S.AXIS, lw=0.6, ls="--")
-    ax.text(pd.Timestamp("2021-01-20"), 0.55, "tuning origin 2021-01", fontsize=6.5, color=S.INK_2)
+    ax.axvline(pd.Timestamp("2022-01-01"), ymax=0.3, color=S.AXIS, lw=0.6, ls="--")
+    ax.text(pd.Timestamp("2022-01-20"), 0.55, "tuning origin 2022-01", fontsize=6.5, color=S.INK_2)
     ax.axvline(data_end + pd.DateOffset(months=1), color=S.AXIS, lw=0.6, ls=":")
     ax.set_yticks([])
     ax.grid(False)
     ax.spines["left"].set_visible(False)
-    ax.set_xlim(start - pd.Timedelta(days=30), pd.Timestamp("2026-01-01"))
+    ax.set_xlim(start - pd.Timedelta(days=30), data_end + pd.DateOffset(months=13))
     handles = [plt.Rectangle((0, 0), 1, 1, color=S.GRID),
                plt.Rectangle((0, 0), 1, 1, color=S.COLOR["simple"]),
                plt.Rectangle((0, 0), 1, 1, color=S.COLOR["statistical"]),
@@ -501,8 +504,9 @@ def fig_oni_tiers(dataset="ecuador"):
     axes[0].invert_yaxis()
     handles = [plt.Line2D([], [], marker=m, ls="", color=S.INK_2,
                           mfc=S.INK_2 if f else "white", ms=5) for _, m, f in tiers]
+    fig.subplots_adjust(bottom=0.3)
     fig.legend(handles, [t[0] for t in tiers], ncol=4, loc="lower center",
-               bbox_to_anchor=(0.5, -0.12))
+               bbox_to_anchor=(0.5, -0.02))
     S.save(fig, f"fig_oni_{dataset}")
 
 
