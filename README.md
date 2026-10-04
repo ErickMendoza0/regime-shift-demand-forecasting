@@ -12,8 +12,8 @@ countries (COVID-19 and the 2022 energy crisis) serve as external checks.
 
 The version submitted in August 2026, with four annual folds, is tagged
 [`v1.0`](https://github.com/ErickMendoza0/regime-shift-demand-forecasting/tree/v1.0).
-This branch replaces it with monthly forecast origins, preprocessing cut at each
-origin, uniform tuning and dependence-aware tests. The analysis plan was
+Version `v2.0` replaces it with monthly forecast origins, preprocessing cut at
+each origin, uniform tuning and dependence-aware tests. The analysis plan was
 committed before the campaign ran: [docs/preregistration.md](docs/preregistration.md).
 
 ## What is compared
@@ -93,7 +93,8 @@ Each step also runs on a single machine, for example
 `python -m src.evaluate --dataset ecuador`. Outputs go to `work/` (or
 `$REGIME_WORK`): forecasts in `preds/`, tuned parameters in `tuning/`, tables in
 `tables/` and figures in `figures/`. `python -m src.summary` writes
-`tables/results.tex`, which defines `es{key}` for every number the paper
+`tables/results.tex`, which defines `
+es{key}` for every number the paper
 quotes, and `tables/summary.md` with the checks of the analysis plan;
 `python -m src.tables` writes the LaTeX tables to `tables/latex/`.
 
