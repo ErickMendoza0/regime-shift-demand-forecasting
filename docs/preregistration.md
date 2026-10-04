@@ -118,3 +118,11 @@ are pooled per target month over all forecasts of that month.
   extended data (origins up to July 2026, re-tuning every January up to 2026),
   with the protocol otherwise unchanged; the first run is archived. Brazil and
   Europe are not affected.
+- 4 October 2026, while checking the paper against the tables. The accuracy
+  tables (MAPE, RMSE, MAE, mean error, rebound MASE) and the MASE of each shift
+  episode were averaged over all forecasts instead of over target months, so months near either end of the
+  evaluation, which have fewer forecasts, weighed less than the plan says. They
+  now average per target month first, as the stable and shift MASE always did.
+  Shift and rebound values in Ecuador and Brazil are unchanged, European
+  shift values move by less than 2 %, and the mean ranks across episodes move
+  by at most 0.21; stable-month MAE and bias change slightly.
