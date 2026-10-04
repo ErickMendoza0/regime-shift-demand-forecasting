@@ -72,10 +72,15 @@ def errors(dataset: str, preds: pd.DataFrame) -> pd.DataFrame:
 
 
 def accuracy(df: pd.DataFrame, by) -> pd.DataFrame:
-    g = df.groupby(by)
+    """Error measures by group. Every target month weighs the same, as in the
+    paper: errors are first averaged over the forecasts of that month."""
+    keys = list(by) + [k for k in ("target", "date") if k not in by]
+    per_month = df.groupby(keys)[["sae", "ape", "se", "ae", "err"]].mean()
+    g = per_month.groupby(level=list(by))
     return pd.DataFrame({
         "MASE": g["sae"].mean(), "MAPE": g["ape"].mean(), "RMSE": np.sqrt(g["se"].mean()),
-        "MAE": g["ae"].mean(), "bias": g["err"].mean(), "n": g.size(),
+        "MAE": g["ae"].mean(), "bias": g["err"].mean(), "months": g.size(),
+        "n": df.groupby(by).size(),
     }).reset_index()
 
 
@@ -130,7 +135,8 @@ def episodes(df: pd.DataFrame) -> pd.DataFrame:
         run_id = np.cumsum(np.r_[1, np.diff(months).astype("timedelta64[D]").astype(int) > 31])
         ep = dict(zip(months, run_id))
         g = g.assign(episode=g["date"].map(ep))
-        m = g.groupby(["episode", "model"])["sae"].mean().unstack("model")
+        m = (g.groupby(["episode", "model", "date"])["sae"].mean()
+              .groupby(["episode", "model"]).mean().unstack("model"))
         first = g.groupby("episode")["date"].min()
         m.index = [f"{target}:{first[e]:%Y-%m}" for e in m.index]
         out.append(m)
@@ -171,7 +177,8 @@ def main() -> None:
     keys = ["model", "target", "origin", "date"]
     per_seed = preds.merge(df[keys + ["y", "scale"]], on=keys)
     per_seed["sae"] = (per_seed["y"] - per_seed["y_hat"]).abs() / per_seed["scale"]
-    (per_seed.groupby(["model", "seed"])["sae"].mean().groupby("model")
+    (per_seed.groupby(["model", "seed", "target", "date"])["sae"].mean()
+             .groupby(["model", "seed"]).mean().groupby("model")
              .agg(["mean", "std", "min", "max", "count"]).to_csv(out / "seeds.csv"))
 
     deployable = df[~df["model"].str.endswith(ORACLE)]
