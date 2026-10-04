@@ -5,9 +5,9 @@ shifts. The question is simple: when a series goes through a genuine break, do
 more elaborate models hold up better than simple ones, and how much of their
 accuracy in calm periods survives?
 
-The main case is Ecuador's billed electricity consumption (2014-2024), which
-went through the COVID-19 lockdown in 2020 and a drought with scheduled load
-shedding in late 2024. Brazil (the 2001 rationing and COVID-19) and the 27 EU
+The main case is Ecuador's billed electricity consumption (January 2014 to July
+2026), which went through the COVID-19 lockdown in 2020 and a drought with
+scheduled load shedding in late 2024. Brazil (the 2001 rationing and COVID-19) and the 27 EU
 countries (COVID-19 and the 2022 energy crisis) serve as external checks.
 
 The version submitted in August 2026, with four annual folds, is tagged
@@ -45,6 +45,8 @@ hindsight bound and never ranked with the others.
   the median forecast.
 - Regimes come from a change-point analysis of year-on-year growth
   (`src/changepoints.py`), not from calendar years.
+- Months in which a distributor did not report to the Ecuadorian regulator are
+  treated as missing rather than as drops in consumption (`src/data.py`).
 - Errors are scaled per target and origin (MASE). Comparisons use the model
   confidence set, Diebold-Mariano tests with a HAC variance and Holm correction,
   and Giacomini-White and Giacomini-Rossi tests of regime-dependent performance.
@@ -65,7 +67,10 @@ src/
   combine.py         combinations and switching rules
   evaluate.py        scores, degradation, tests
   inference.py       DM, MCS, Giacomini-White, Giacomini-Rossi, Friedman
+  pooled.py          comparison across all shift episodes
   figures.py         paper figures (plot_style.py sets the look)
+  tables.py          LaTeX tables of the paper
+  summary.py         LaTeX macros with every number quoted in the paper
 slurm/               job scripts and submit.sh
 tests/               leakage, data and style tests
 docs/                analysis plan
@@ -87,7 +92,10 @@ Each step also runs on a single machine, for example
 `python -m src.run --dataset ecuador --model ets --origin 2024-01` or
 `python -m src.evaluate --dataset ecuador`. Outputs go to `work/` (or
 `$REGIME_WORK`): forecasts in `preds/`, tuned parameters in `tuning/`, tables in
-`tables/` and figures in `figures/`.
+`tables/` and figures in `figures/`. `python -m src.summary` writes
+`tables/results.tex`, which defines `es{key}` for every number the paper
+quotes, and `tables/summary.md` with the checks of the analysis plan;
+`python -m src.tables` writes the LaTeX tables to `tables/latex/`.
 
 ## Data
 
