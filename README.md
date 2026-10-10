@@ -93,8 +93,7 @@ Each step also runs on a single machine, for example
 `python -m src.evaluate --dataset ecuador`. Outputs go to `work/` (or
 `$REGIME_WORK`): forecasts in `preds/`, tuned parameters in `tuning/`, tables in
 `tables/` and figures in `figures/`. `python -m src.summary` writes
-`tables/results.tex`, which defines `
-es{key}` for every number the paper
+`tables/results.tex`, which defines `\res{key}` for every number the paper
 quotes, and `tables/summary.md` with the checks of the analysis plan;
 `python -m src.tables` writes the LaTeX tables to `tables/latex/`.
 
