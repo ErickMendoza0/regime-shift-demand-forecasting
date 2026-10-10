@@ -1,8 +1,8 @@
 """Shared look of every figure.
 
-One fixed colour per model family, always in the same order, checked for colour
-blindness with the AIR Institute data-visualisation palette validator. Families
-also get their own marker, because the journal is printed and read in grey.
+One fixed colour per model family, always in the same order, checked with a
+colour-vision-deficiency palette validator. Families also get their own marker,
+because the journal is printed and read in grey.
 Text stays in neutral ink; colour only marks identity.
 """
 import re
